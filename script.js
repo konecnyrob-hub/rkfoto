@@ -1,22 +1,23 @@
 /*
  * Kam se posílají poptávky z formuláře.
  * Prázdné  -> formulář otevře e-mailového klienta s předvyplněnou zprávou.
- * Vyplněné -> např. "https://formspree.io/f/xxxxxxx" (zdarma), zprávy pak chodí přímo na e-mail bez otevírání pošty.
+ * Vyplněné -> např. "https://formspree.io/f/xxxxxxx" (zdarma), zprávy pak chodí přímo na e-mail.
  */
 const FORM_ENDPOINT = "";
 const CONTACT_EMAIL = "konecny.rob@gmail.com";
 
-/* Rok v patičce */
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 document.getElementById("year").textContent = new Date().getFullYear();
 
-/* Hlavička: stín po scrollu + mobilní menu */
+/* Hlavička: po odscrollování z úvodu dostane pozadí */
 const header = document.querySelector(".site-header");
-const nav = document.getElementById("nav");
-const toggle = document.querySelector(".menu-toggle");
-const onScroll = () => header.classList.toggle("scrolled", window.scrollY > 8);
+const onScroll = () => header.classList.toggle("scrolled", window.scrollY > window.innerHeight * 0.6);
 window.addEventListener("scroll", onScroll, { passive: true });
 onScroll();
 
+/* Mobilní menu */
+const nav = document.getElementById("nav");
+const toggle = document.querySelector(".menu-toggle");
 toggle.addEventListener("click", () => {
   const open = nav.classList.toggle("open");
   toggle.setAttribute("aria-expanded", String(open));
@@ -29,6 +30,41 @@ nav.querySelectorAll("a").forEach((a) =>
   })
 );
 
+/* Úvodní fotky se pomalu prolínají */
+const slides = [...document.querySelectorAll(".slide")];
+const capEl = document.getElementById("slide-caption");
+const countEl = document.getElementById("slide-count");
+let slideIdx = 0;
+const showSlide = (i) => {
+  slides[slideIdx].classList.remove("is-active");
+  slideIdx = i % slides.length;
+  slides[slideIdx].classList.add("is-active");
+  capEl.textContent = slides[slideIdx].dataset.caption;
+  countEl.textContent = `${slideIdx + 1} / ${slides.length}`;
+};
+if (!reduceMotion && slides.length > 1) {
+  setInterval(() => { if (!document.hidden) showSlide(slideIdx + 1); }, 6500);
+}
+
+/* Služby: vybraná služba ukáže svou fotku */
+const services = [...document.querySelectorAll(".service")];
+const servicePhoto = document.querySelector(".service-photo img");
+services.forEach((btn) => {
+  const pre = new Image();
+  btn.addEventListener("click", () => {
+    if (btn.classList.contains("is-active")) return;
+    services.forEach((b) => { b.classList.remove("is-active"); b.setAttribute("aria-pressed", "false"); });
+    btn.classList.add("is-active");
+    btn.setAttribute("aria-pressed", "true");
+    servicePhoto.classList.add("fading");
+    pre.onload = () => {
+      servicePhoto.src = btn.dataset.img;
+      requestAnimationFrame(() => servicePhoto.classList.remove("fading"));
+    };
+    pre.src = btn.dataset.img;
+  });
+});
+
 /* Tlačítka v ceníku předvyplní balíček ve formuláři */
 const planSelect = document.getElementById("f-plan");
 document.querySelectorAll("[data-plan]").forEach((el) =>
@@ -39,9 +75,8 @@ document.querySelectorAll("[data-plan]").forEach((el) =>
   })
 );
 
-/* Plovoucí CTA na mobilu – schovat, když je vidět úvodní tlačítko nebo kontakt */
+/* Plovoucí tlačítko na mobilu – jen když není vidět úvod ani kontakt */
 const mobileCta = document.querySelector(".mobile-cta");
-const ctaWatch = [document.querySelector(".hero-cta"), document.getElementById("kontakt")];
 const visible = new Set();
 mobileCta.classList.add("hide");
 const ctaObserver = new IntersectionObserver(
@@ -51,26 +86,7 @@ const ctaObserver = new IntersectionObserver(
   },
   { threshold: 0.05 }
 );
-ctaWatch.forEach((el) => ctaObserver.observe(el));
-
-/* Jemné objevování sekcí */
-const revealEls = document.querySelectorAll(
-  ".section-head, .service, .why-list li, .steps li, .plan, .matterport, .faq, .form, .contact-copy"
-);
-const ro = new IntersectionObserver(
-  (entries) =>
-    entries.forEach((e) => {
-      if (e.isIntersecting) {
-        e.target.classList.add("in");
-        ro.unobserve(e.target);
-      }
-    }),
-  { rootMargin: "0px 0px -8% 0px" }
-);
-revealEls.forEach((el) => {
-  el.classList.add("reveal");
-  ro.observe(el);
-});
+[document.querySelector(".hero"), document.getElementById("kontakt")].forEach((el) => ctaObserver.observe(el));
 
 /* Matterport se načte až po kliknutí (rychlejší web) */
 const facade = document.querySelector(".mp-facade");
@@ -90,16 +106,10 @@ const lbImg = lb.querySelector("img");
 let current = 0;
 const show = (i) => {
   current = (i + items.length) % items.length;
-  const it = items[current];
-  lbImg.src = it.dataset.full;
-  lbImg.alt = it.querySelector("img").alt;
+  lbImg.src = items[current].dataset.full;
+  lbImg.alt = items[current].querySelector("img").alt;
 };
-items.forEach((it, i) =>
-  it.addEventListener("click", () => {
-    show(i);
-    lb.showModal();
-  })
-);
+items.forEach((it, i) => it.addEventListener("click", () => { show(i); lb.showModal(); }));
 lb.querySelector(".lb-close").addEventListener("click", () => lb.close());
 lb.querySelector(".lb-prev").addEventListener("click", () => show(current - 1));
 lb.querySelector(".lb-next").addEventListener("click", () => show(current + 1));
@@ -128,7 +138,7 @@ const setStatus = (msg, cls) => {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const data = Object.fromEntries(new FormData(form));
-  if (data._gotcha) return; // spam bot
+  if (data._gotcha) return;
 
   let valid = true;
   const check = (name, ok) => {
@@ -140,7 +150,7 @@ form.addEventListener("submit", async (e) => {
   check("name", data.name.trim().length > 1);
   check("email", /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()));
   check("message", data.message.trim().length > 2);
-  if (!valid) return setStatus("Vyplňte prosím jméno, platný e-mail a zprávu.", "err");
+  if (!valid) return setStatus("Vyplňte jméno, platný e-mail a zprávu.", "err");
 
   if (!FORM_ENDPOINT) {
     const body =
@@ -149,7 +159,7 @@ form.addEventListener("submit", async (e) => {
     window.location.href =
       `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Poptávka z webu – " + data.plan)}` +
       `&body=${encodeURIComponent(body)}`;
-    return setStatus("Otevírám e-mail s připravenou zprávou – stačí ji odeslat.", "ok");
+    return setStatus("Otevírám e-mail s připravenou poptávkou. Stačí ji odeslat.", "ok");
   }
 
   const btn = form.querySelector("button[type=submit]");
@@ -163,9 +173,9 @@ form.addEventListener("submit", async (e) => {
     });
     if (!res.ok) throw new Error(res.status);
     form.reset();
-    setStatus("Děkuji! Poptávka dorazila, ozvu se co nejdříve.", "ok");
+    setStatus("Poptávka odeslána. Ozvu se co nejdříve.", "ok");
   } catch {
-    setStatus(`Odeslání se nepovedlo. Napište prosím přímo na ${CONTACT_EMAIL}.`, "err");
+    setStatus(`Poptávku se nepodařilo odeslat. Napište přímo na ${CONTACT_EMAIL}.`, "err");
   } finally {
     btn.disabled = false;
   }
