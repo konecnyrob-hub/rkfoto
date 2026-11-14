@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://konecnyrob-hub.github.io/rkfoto/sitemap.xml
